@@ -1,9 +1,9 @@
-import { Socket } from "net";
 import { strictEqual } from "assert";
-import { EventEmitter } from "events";
 import makeDebug from "debug";
-
+import { EventEmitter } from "events";
+import { Socket } from "net";
 import RedisParser from "redis-parser";
+import { TLSSocket, ConnectionOptions as tlsConnectionOptions } from "tls";
 
 const debug = makeDebug("faktory-worker:connection");
 
@@ -39,6 +39,7 @@ export type ConnectionOptions = {
   host?: string;
   port?: string | number;
   password?: string;
+  tlsOptions?: tlsConnectionOptions;
 };
 
 /**
@@ -63,20 +64,30 @@ export class Connection extends EventEmitter {
   host: string | undefined;
   port: string | number;
   pending: PendingRequest[];
-  socket: Socket;
+  socket: Socket | TLSSocket;
   parser: RedisParser;
   lastError: Error;
+  tlsOptions: tlsConnectionOptions | undefined;
 
   /**
    * @param {Number} port the port to connect on
    * @param {String} host the hostname to connect to
+   * @param {Object} options additional options
    */
-  constructor(port: string | number, host?: string) {
+  constructor(
+    port: string | number,
+    host?: string,
+    tlsOptions?: tlsConnectionOptions
+  ) {
     super();
     this.host = host;
     this.port = port;
     this.connected = false;
     this.socket = new Socket();
+    this.tlsOptions = tlsOptions;
+    if (this.tlsOptions !== undefined) {
+      this.socket = new TLSSocket(this.socket, this.tlsOptions);
+    }
     this.socket.setKeepAlive(true);
     this.pending = [];
     this.parser = new RedisParser({
