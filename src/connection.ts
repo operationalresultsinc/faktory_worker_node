@@ -3,7 +3,11 @@ import makeDebug from "debug";
 import { EventEmitter } from "events";
 import { Socket } from "net";
 import RedisParser from "redis-parser";
-import { TLSSocket, ConnectionOptions as tlsConnectionOptions } from "tls";
+import {
+  TLSSocket,
+  connect as tlsConnect,
+  ConnectionOptions as tlsConnectionOptions,
+} from "tls";
 
 const debug = makeDebug("faktory-worker:connection");
 
@@ -84,11 +88,8 @@ export class Connection extends EventEmitter {
     this.port = port;
     this.connected = false;
     this.socket = new Socket();
-    this.tlsOptions = tlsOptions;
-    if (this.tlsOptions !== undefined) {
-      this.socket = new TLSSocket(this.socket, this.tlsOptions);
-    }
     this.socket.setKeepAlive(true);
+    this.tlsOptions = tlsOptions;
     this.pending = [];
     this.parser = new RedisParser({
       returnReply: (response: string) => this.pending.pop()?.resolve(response),
@@ -132,7 +133,18 @@ export class Connection extends EventEmitter {
       this.pending.unshift({ resolve, reject });
     });
 
-    this.socket.connect(<number>this.port, this.host || "127.0.0.1");
+    if (this.tlsOptions !== undefined) {
+      this.socket = tlsConnect({
+        host: this.host,
+        port: Number(this.port),
+        ...this.tlsOptions,
+      });
+      this.socket.setKeepAlive(true);
+      this.listen(); // Re-setup event listeners for the TLS socket
+    } else {
+      this.socket.connect(<number>this.port, this.host || "127.0.0.1");
+    }
+
     const response = <string>await receiveGreetingResponse;
     const greeting = JSON.parse(response.split(" ")[1]);
     this.emit("greeting", greeting);
