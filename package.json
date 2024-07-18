@@ -1,5 +1,5 @@
 {
-  "name": "faktory-worker",
+  "name": "@operationalresults/faktory-worker",
   "version": "4.5.1",
   "description": "A faktory worker framework for node apps",
   "type": "commonjs",
